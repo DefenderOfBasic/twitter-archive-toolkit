@@ -2,7 +2,7 @@
 
 Swiss army knife for experiments with my twitter archive. 
 
-Live demo:
+Live demo: TODO
 
 - The basic viewer defaults to loading my twitter JSON
 - You can replace it with your own JSON, either from the community-archive or locally

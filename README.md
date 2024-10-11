@@ -2,7 +2,7 @@
 
 Swiss army knife for experiments with my twitter archive. 
 
-Live demo: TODO
+Live demo: https://defenderofbasic.github.io/twitter-archive-toolkit/
 
 - The basic viewer defaults to loading my twitter JSON
 - You can replace it with your own JSON, either from the community-archive or locally

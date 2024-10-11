@@ -19,7 +19,7 @@ Live demo: TODO
 - Run `pnpm dev` to launch frontend
 - In a separate terminal, run `pnpm start-server`
 - Open http://localhost:3000/semantic-search.html
-- Enter your OpenAI API key on the page, then refresh
+- Enter your [OpenAI API key](https://platform.openai.com/docs/quickstart) on the page, then refresh
 
 This will automatically fetch the tweets from the given archive, embed them using OpenAI's embedding model, store the vector results in a local JSON file using Vectra. Once it's done embedding, you can search your tweets semantically.
 

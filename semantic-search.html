@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" type="text/css" href="base.css">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <title>Twitter Archive Toolkit</title>
+  <script type="module" crossorigin src="./assets/semantic-search-Bj-Y0Avv.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/util-B4MglFjG.js">
+</head>
+
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+
+  <div id="main-content">
+    <style>
+      #error {
+        color: rgb(255, 105, 105);
+      }
+
+      #title {
+        margin-bottom: 0px;
+      }
+
+      .date {
+        color: var(--color-muted);
+      }
+
+      .tweet-text {
+        margin-bottom: 0px;
+      }
+
+      #search {
+        padding: 6px;
+        font-size: 15px;
+        border-radius: 5px;
+        width: 400px;
+        display: none;
+      }
+
+      #error {
+        color: rgb(255, 105, 105);
+      }
+
+      .tweet-container {
+        display: flex;
+        flex-wrap: wrap;
+      }
+
+      .tweet {
+        border: 1px solid rgb(112, 107, 87, 0.5);
+        margin: 5px;
+        padding: 10px;
+        box-sizing: border-box;
+        border-radius: 5px;
+        width: 400px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .tweet p {
+        margin-top: 0px;
+      }
+
+      .tweet .metadata {
+        color: var(--color-muted);
+      }
+
+      .tweet .toolbar {
+        font-size: 20px;
+      }
+
+      .thread {
+        border: 1px solid rgb(112, 107, 87, 0.5);
+        border-radius: 5px;
+      }
+
+      .thread .tweet {
+        border: none;
+      }
+
+      .disabled-link {
+        text-decoration: none;
+      }
+    </style>
+
+    <a href="/">🏠 <span style="font-size: 12px;">(back home)</span></a>
+
+    <div id="settings-panel">
+      <p style="display: flex;">
+        OpenAPI key: <input id="openapi-key" class="minimal-input" type="text" autocomplete="off"></input>
+      </p>
+      <p style="display: flex;">
+        Archive source: <input id="datasource-input" class="minimal-input" type="text" autocomplete="off"
+          value="https://pub-b47936fccfdb443db581ea766f51a5c0.r2.dev/DefenderOfBasic.json.gz"></input>
+      </p>
+      <button id="fetch-btn" class="button" style="padding:5px">Fetch</button>
+      <button id="delete-btn" class="button button-danger" style="padding:5px">Delete embeddings</button>
+    </div>
+    <h1 id="title">
+      (loading...)
+    </h1>
+    <hr />
+    <p id="error"></p>
+    <p id="loading-text" class="muted-text">Loading...</p>
+    <textarea id="search" placeholder="semantic search" type="text" autocomplete="off"></textarea>
+    <button id="search-btn" class="button" style="padding:5px; display:none">search</button>
+
+    <div id="tweet-container" class="tweet-container"></div>
+
+  </div>
+</body>
+
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" type="text/css" href="base.css">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <title>Twitter Archive Toolkit</title>
+</head>
+
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+
+  <div id="main-content">
+    <style>
+      #error {
+        color: rgb(255, 105, 105);
+      }
+
+      #title {
+        margin-bottom: 0px;
+      }
+
+      .date {
+        color: var(--color-muted);
+      }
+
+      .tweet-text {
+        margin-bottom: 0px;
+      }
+
+      #search {
+        padding: 6px;
+        font-size: 15px;
+        border-radius: 5px;
+        width: 400px;
+        display: none;
+      }
+
+      #error {
+        color: rgb(255, 105, 105);
+      }
+
+      .tweet {
+        border: 1px solid rgb(112, 107, 87, 0.5);
+        margin: 5px;
+        padding: 10px;
+        box-sizing: border-box;
+        border-radius: 5px;
+        width: 400px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .tweet p {
+        margin-top: 0px;
+      }
+
+      .tweet .metadata {
+        color: var(--color-muted);
+      }
+
+      .tweet .toolbar {
+        font-size: 20px;
+      }
+
+      .thread {
+        border: 1px solid rgb(112, 107, 87, 0.5);
+        border-radius: 5px;
+      }
+
+      .thread .tweet {
+        border: none;
+      }
+
+      .disabled-link {
+        text-decoration: none;
+      }
+    </style>
+
+    <a href="/">🏠 <span style="font-size: 12px;">(back home)</span></a>
+
+    <div id="settings-panel">
+      <p style="display: flex;">
+        Archive source: <input id="datasource-input" class="minimal-input" type="text" autocomplete="off"
+          value="https://pub-b47936fccfdb443db581ea766f51a5c0.r2.dev/DefenderOfBasic.json.gz"></input>
+      </p>
+      <button id="fetch-btn" class="button" style="padding:5px">Fetch</button>
+    </div>
+    <h1 id="title">
+      (loading...)
+    </h1>
+    <hr />
+    <p id="error"></p>
+    <p id="loading-text" class="muted-text">Loading...</p>
+
+    <div id="tweet-container" class="tweet-container"></div>
+
+    <script type="module">
+      import { Util } from './util.js';
+      const tweet_db = new Dexie("TweetDatabase");
+      tweet_db.version(1).stores({
+        tweets: 'id, data, url'
+      });
+      let allTweets
+
+      const datasourceInputElement = document.querySelector("#datasource-input")
+      if (localStorage.getItem('archiveUrl')) {
+        datasourceInputElement.value = localStorage.getItem('archiveUrl')
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('url')) {
+        datasourceInputElement.value = urlParams.get('url')
+      }
+
+      let util = new Util({ db: tweet_db, key: 1 })
+
+      async function init() {
+        console.log("Fetching")
+        try {
+          const archiveUrl = datasourceInputElement.value
+          allTweets = await util.fetchArchive(archiveUrl)
+          document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
+
+          console.log(allTweets)
+          displayListOfTweets(allTweets)
+        } catch (e) {
+          console.error(e)
+          setError(`Failed to fetch tweets: ${String(e)}`)
+        }
+
+        toggleLoading(false)
+
+        document.querySelector("#fetch-btn").onclick = async (e) => {
+          try {
+            setError('')
+            toggleLoading(true)
+            document.querySelector("#title").innerHTML = 'Loading..'
+            allTweets = await util.fetchArchive(datasourceInputElement.value)
+            document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
+            toggleLoading(false)
+
+            localStorage.setItem('archiveUrl', datasourceInputElement.value)
+            updateUrlParam('url', datasourceInputElement.value)
+
+            displayListOfTweets(allTweets)
+          } catch (e) {
+            toggleLoading(false)
+            console.error(e)
+            setError(`Failed to fetch tweets: ${String(e)}`)
+          }
+        }
+      }
+      init()
+
+
+      function displayListOfTweets(tweets) {
+        const maxTweets = 1000
+        let str = `<p class="muted-text">Showing first ${maxTweets} tweets:</p>`
+        const sorted = util.sortAscending(tweets)
+        for (let i = 0; i < sorted.length; i++) {
+          const tweet = sorted[i]
+          str += `<p>${tweet.full_text}</p>`
+
+          if (i > maxTweets) break
+        }
+
+        document.querySelector("#tweet-container").innerHTML = str
+      }
+
+      function setError(text) {
+        document.querySelector("#error").innerHTML = text
+      }
+      function toggleLoading(bool) {
+        if (bool) {
+          document.querySelector("#loading-text").style.display = 'block'
+        } else {
+          document.querySelector("#loading-text").style.display = 'none'
+        }
+      }
+      function updateUrlParam(param, value) {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set(param, value)
+        window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+      }
+
+    </script>
+  </div>
+</body>
+
+</html>

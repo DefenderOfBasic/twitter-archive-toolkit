@@ -1,0 +1,2 @@
+- code editor on the page 
+- drag and drop archive to visualize it, store it in local 

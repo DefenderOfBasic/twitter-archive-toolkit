@@ -1,0 +1,142 @@
+/* 
+https://colorhunt.co/palette/fefaf6eadbc8dac0a3102c57
+*/
+:root {
+    --color-bg: #f1efe7;
+    --color-primary: rgb(112, 107, 87);
+    --color-muted: rgb(175 168 140)
+  }
+  
+  @font-face {
+    font-family: HK Grotesk;
+    font-weight: bold;
+    src: url("HKGrotesk-Bold.otf")
+      format("opentype");
+  }
+  
+  html {
+    font-family: HK Grotesk;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: var(--color-primary);
+    background: var(--color-bg);
+    font-size: 18px;
+  }
+
+  .small-text {
+    font-size: 12px;
+  }
+  
+  .content {
+      margin:auto;
+      max-width: 700px;
+      padding: 30px;
+  }
+  
+  .todo {
+    display: none;
+  }
+  
+  @media only screen and (max-width : 900px) {
+      .content {
+        padding: 0px;
+      }
+  }
+  
+  .muted-text {
+    color: var(--color-muted);
+  }
+  
+  a {
+    color: var(--color-muted);
+  }
+  
+.button {
+  border: 1px solid black;
+  color: #2d182e;
+    padding: 12px 24px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color .3s, box-shadow .3s;
+    outline: none;
+    background-color: white;
+
+}
+
+.button:hover {
+  background-color: #ffffff; 
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  color: #2d182e;
+}
+
+.button:active {
+  background-color: #dcdcdc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(2px);
+}
+
+.button-danger {
+  background-color: #ff7676;
+  border-color: #ff7676;
+}
+.button-danger:hover {
+  background-color: #ff7676;
+}
+  
+  .three-dots {
+    text-align: center;
+    margin-top: 50px;
+    margin-bottom: 50px;
+  }
+  
+  
+  .three-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-muted);
+    display: inline-block;
+    margin: 0 15px;
+  }
+  
+  .highlighted-span {
+      background: #fff1be;
+      padding: 5px;
+      border-radius: 5px;
+  }
+  
+  .highlighted-code {
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: #5f5328;
+      padding: 10px;
+      border-radius: 5px;
+      color: var(--color-bg);
+  }
+
+	#settings-panel {
+		background-color: #fbf7e9;
+		padding: 5px;
+		border-radius: 5px;
+		color: var(--color-muted);
+	}
+
+  .minimal-input {
+    color: var(--color-muted);
+		background-color: rgba(1, 1, 1, 0);
+		border: none;
+		border-bottom: 1px solid black;
+		font-size: 16px;
+		font-family: inherit;
+		padding: 0;
+		outline: none;
+  }
+
+	#datasource-input {
+		flex-grow: 1;
+	}

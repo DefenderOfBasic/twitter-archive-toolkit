@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="stylesheet" type="text/css" href="base.css">
+	<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+	<title>Twitter Archive Toolkit</title>
+  </head>
+  <body>
+	<div id="main-content"> 
+		
+	<style>
+
+	#title {
+	  margin-bottom: 0px;
+	}
+	.date {
+	  color: var(--color-muted);
+	}
+	.tweet-text {
+	  margin-bottom: 0px;
+	}
+	#search {
+	  padding: 6px;
+	  font-size: 15px;
+	  border-radius: 5px;
+	  width: 400px;
+	  display: none;
+	}
+	#error {
+	  color: rgb(255, 105, 105);
+	}
+  
+	.tweet-container {
+	  display: flex;
+	  flex-wrap: wrap;
+	}
+  
+	.tweet {
+	  border: 1px solid rgb(112, 107, 87, 0.5);
+	  margin: 5px;
+	  padding: 10px;
+	  box-sizing: border-box;
+	  border-radius: 5px;
+	  width: 400px;
+	  display: flex;
+	  flex-direction: column;
+	}
+	.tweet p {
+	  margin-top: 0px;
+	}
+	.tweet .metadata {
+	  color:  var(--color-muted);
+	}
+	.tweet .toolbar {
+	  font-size: 20px;
+	}
+  
+	.thread {
+	  border: 1px solid rgb(112, 107, 87, 0.5);
+	  border-radius: 5px;
+	}
+	.thread .tweet {
+	  border: none;
+	}
+	.disabled-link {
+	  text-decoration: none;
+	}
+  	</style>
+  
+ 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+	<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+	<script src='https://cdn.plot.ly/plotly-2.35.2.min.js'></script>
+  
+	<a href="/">🏠 <span  style="font-size: 12px;">(back home)</span></a>
+
+	<div id="settings-panel">
+		<p style="display: flex;">
+			Archive source: <input id="datasource-input" class="minimal-input" type="text" autocomplete="off" value="https://pub-b47936fccfdb443db581ea766f51a5c0.r2.dev/DefenderOfBasic.json.gz"></input>
+		</p>
+		<button id="fetch-btn" class="button" style="padding:5px">Fetch</button>
+	</div>
+	
+	<h1 id="title">
+		(loading...)
+	</h1>
+	<p id="metadata" class="muted-text">		
+		📃 <a href="#" id="tweets-btn">tweets & threads</a> • 
+		🌟 <a href="#" id="everything-btn">tweets & replies & rt's</a> • 
+		⛩️ <a href="" id="followers-btn">interactions with mutuals</a> • 
+		🎩 <a href="" id="top-btn">top tweets</a> • 
+		📉 <a href="" id="stats-btn">stats</a> 
+	</p>
+	<hr/>
+	<p id="error"></p>
+	<input id="search" placeholder="regex search" type="text" autocomplete="off"></input>
+	<p id="loading-text" class="muted-text">Loading...</p>
+	<p id="tweet-counts" class="muted-text"></p>
+	
+	<div id="tweet-container" class="tweet-container"></div>
+  
+	 <script type="module">
+      	import { Util } from './util.js';
+		const tweet_db = new Dexie("TweetDatabase");
+		tweet_db.version(1).stores({
+			tweets: 'id, data, url' 
+		});
+		window.tweet_db = tweet_db
+
+		const MODES = {
+		'TWEETS': { btn: 'tweets-btn' },
+		'EVERYTHING': { btn: 'everything-btn' },
+		'FOLLOWERS': { btn: 'followers-btn' },
+		'TOP': { btn: 'top-btn' },
+		'STATS': { btn: 'stats-btn'}
+		}
+		let allTweets = []
+		const datasourceInputElement = document.querySelector("#datasource-input")
+		if (localStorage.getItem('archiveUrl')) {
+			datasourceInputElement.value = localStorage.getItem('archiveUrl')
+		}
+		const urlParams = new URLSearchParams(window.location.search);
+		if (urlParams.get('url')) {
+			datasourceInputElement.value = urlParams.get('url')
+		}
+
+		setupViewButtons()
+		let util = new Util({ db: tweet_db, key: 1 })
+	
+		async function init() { 
+			try {
+				const archiveUrl = datasourceInputElement.value 
+				allTweets = await util.fetchArchive(archiveUrl)
+				document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
+				resetMode()    
+			} catch (e) {
+				console.error(e)
+				setError(`Failed to fetch tweets: ${String(e)}`)
+			}
+			
+			toggleLoading(false)
+	
+			document.querySelector("#search").oninput = (e) => {
+				const re = new RegExp(e.target.value);
+				window.regex = re
+		
+				resetMode()
+			}
+
+			document.querySelector("#fetch-btn").onclick = async (e) => {
+				try {
+					setError('')
+					toggleLoading(true)
+					document.querySelector("#title").innerHTML = 'Loading..'
+					allTweets = await util.fetchArchive(datasourceInputElement.value)
+					document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
+					toggleLoading(false)
+					resetMode()
+
+					localStorage.setItem('archiveUrl', datasourceInputElement.value)
+					
+					updateUrlParam('url', datasourceInputElement.value)
+				} catch (e) {
+					toggleLoading(false)
+					console.error(e)
+					setError(`Failed to fetch tweets: ${String(e)}`)
+				}
+			}
+	
+			
+		}
+		init()
+	
+		function toggleLoading(bool) {
+			if (bool) {
+				document.querySelector("#search").style.display = 'none'
+				document.querySelector("#loading-text").style.display = 'block'
+			} else {
+				document.querySelector("#search").style.display = 'block'
+				document.querySelector("#loading-text").style.display = 'none'
+			}
+		}
+	
+		function setError(text) {
+			document.querySelector("#error").innerHTML = text
+		}
+	
+		function resetMode() {    
+			document.querySelector("#error").innerHTML = ''
+			document.querySelector('#search').style.display = 'block'
+		
+			const container = document.querySelector("#tweet-container")
+			document.querySelector("#tweet-counts").innerHTML = ""
+			container.innerHTML = "loading..."
+		
+			const mode = getCurrentMode().toUpperCase()
+			const functions = {
+				'TWEETS': setupThreads,
+				'EVERYTHING': setupAllTweets,
+				'FOLLOWERS': setupFollowers,
+				'TOP': topTweets,
+				'STATS': setupStats, 
+			}
+		
+			if (functions[mode]) {
+				setTimeout(() => {
+				try {
+					functions[mode]()
+				} catch(e) {
+					console.error(e)
+					setError('Error: ' + e)
+				} 
+				
+				}, 10)
+				
+			} else {
+				console.error("No function found for ", mode)
+			}
+		}
+	
+		function setupViewButtons() {
+			const urlParams = new URLSearchParams(window.location.search);
+			const mode = getCurrentMode()
+			const btns = Object.values(MODES).map(mode => mode.btn);
+			const btnId = MODES[mode].btn
+			document.querySelector(`#${btnId}`).classList.add('disabled-link')
+			const keys = Object.keys(MODES[mode])
+			
+			btns.forEach(btn => {
+				document.querySelector(`#${btn}`).addEventListener('click', function(event) {
+					event.preventDefault();
+					const newMode = Object.keys(MODES).find(key => MODES[key].btn === btn);
+					updateUrlParam('mode', newMode)
+					// Update button states
+					btns.forEach(b => document.querySelector(`#${b}`).classList.remove('disabled-link'));
+					document.querySelector(`#${btn}`).classList.add('disabled-link');
+		
+					resetMode()
+				});
+			});    
+		}
+	
+		function setupThreads() {
+			const container = document.querySelector("#tweet-container")
+			let tweets = util.sortAscending(allTweets)
+			const  threadData = util.getThreads(tweets)
+			const { retweet_count, external_reply_count } = threadData
+			tweets = threadData.tweets
+		
+			let str = ""
+			for (let i = 0; i < tweets.length; i++) {
+				const tweet = tweets[i]
+		
+				if (window.regex) {
+				if (!window.regex.test(tweet.full_text)) continue;
+				}
+		
+				if (tweet.parent) {
+				continue;
+				}
+				if (tweet.nextTweet == null) {
+				str += util.makeHTMLForTweet(tweet)
+				} else {
+				str += util.makeHTMLForThread(tweet)
+				}
+			}
+		
+			document.querySelector("#tweet-counts").innerHTML = `retweets: ${retweet_count} (hidden) non-self replies: ${external_reply_count} (hidden)`
+			container.innerHTML = str
+		}
+	
+		function setupAllTweets() {
+			const container = document.querySelector("#tweet-container")
+			const countsContainer = document.querySelector("#tweet-counts")
+		
+			let tweets = util.sortAscending(allTweets)
+			let retweet_count = 0
+			let replies = 0
+		
+			let str = ""
+			for (let i = 0; i < tweets.length; i++) {
+				const tweet = tweets[i]
+				if (window.regex) {
+				if (!window.regex.test(tweet.full_text)) continue;
+				}
+				str += util.makeHTMLForTweet(tweet)
+		
+				if (tweet.full_text.startsWith('RT')) {
+				retweet_count ++
+				}
+		
+				if (tweet.in_reply_to_status_id != null) {
+				replies ++
+				}
+			}
+		
+			container.innerHTML = str
+			countsContainer.innerHTML = `retweets: ${retweet_count} replies: ${replies}`
+		}
+	
+		function topTweets() {
+			const container = document.querySelector("#tweet-container")
+			const countsContainer = document.querySelector("#tweet-counts")
+		
+			let total_likes = 0 
+			let total_retweets = 0
+			for (let tweet of allTweets) {
+				total_likes += Number(tweet.favorite_count)
+				total_retweets += Number(tweet.retweet_count)
+			}
+		
+			const threadData = util.getThreads(allTweets)
+			let tweets = threadData.tweets
+			tweets = tweets.sort(function(a,b){
+				return b.favorite_count - a.favorite_count
+			})
+		
+			let str = ""
+			for (let i = 0; i < tweets.length; i++) {
+				const tweet = tweets[i]
+				if (window.regex) {
+				if (!window.regex.test(tweet.full_text)) continue;
+				}
+				if (tweet.parent != null) {
+				// ignore tweets that are part of a thread
+				continue
+				}
+				if (tweet.favorite_count < 20) {
+				continue
+				}
+		
+				str += util.makeHTMLForTweet(tweet)
+			}
+		
+			container.innerHTML = str 
+			countsContainer.innerHTML = `Total: 🔂 ${total_retweets.toLocaleString()} 🤍 ${total_likes.toLocaleString()}`
+		}
+	
+		function setupStats() {
+			const container = document.querySelector("#tweet-container")
+			const countsContainer = document.querySelector("#tweet-counts")
+			document.querySelector('#search').style.display = 'none'
+			container.innerHTML = `
+			<div>
+			<h2 style="margin-bottom:0px;"> Popularity over time </h2>
+			<p class="muted-text" style="margin-top:0px;"> (number of likes + retweets per day) </p>
+			<div id="popularity-chart"></div>
+
+			<h2> Tweets by day of week </h2>
+			<div style='height: auto; width: 600px;'><canvas id="bar-chart"></canvas></div>
+		
+			<h2> Days with the most tweets </h2>
+			<ul id="days"></ul>
+		
+			<h2> Hours with the most tweets </h2>
+			<ul id="hours"></ul>
+		
+			<h2> Tweets by hour </h2>
+			<div style='height: auto; width: 600px;'><canvas id="hour-bar-chart"></canvas></div>
+		
+		
+			</div>
+			`
+			const likesOverTime = util.getPopularityOverTime(allTweets)
+			Plotly.newPlot( container.querySelector("#popularity-chart"), 
+			[{
+				x: likesOverTime.map(item => item.x),
+				y: likesOverTime.map(item => item.y),
+				// type: 'histogram',
+			}], 
+				{
+					margin: { t: 0 } 
+				} 
+			);
+
+
+			const canvas = container.querySelector("#bar-chart")
+		
+			const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+			const dayCounts = []
+			for (let i = 0; i < days.length; i++) dayCounts[i] = 0
+		
+			let tweetsForDay = []
+			for (let tweet of allTweets) {
+				const weekday = tweet.date.getDay()
+				dayCounts[weekday] ++
+			}
+				
+			new Chart(canvas, {
+				type: 'bar',
+				data: {
+				labels: days,
+				datasets: [{
+					label: '# of tweets',
+					data: dayCounts,
+					borderWidth: 1
+				}]
+				}
+			});
+		
+			const tweetsByDay = util.countTweetsPerDay(allTweets)
+			const dayContainer = document.querySelector("#days")
+			const options = { 
+				year: 'numeric', 
+				month: 'short',
+				day: '2-digit'
+			}
+			for (let i = 0; i < 5; i++) {
+				const { date, count } = tweetsByDay[i]
+				dayContainer.innerHTML += `<li>${util.formatDate(new Date(date), options)} (${count})</li>`
+			}
+		
+			const tweetsByHour = util.countTweetsPerHour(allTweets)
+			const hourContainer = document.querySelector("#hours")
+			for (let i = 0; i < 5; i++) {
+				const { date, count } = tweetsByHour[i]
+				const splitDate = date.split('/')
+				const hourStr = convertToAmPm(Number(splitDate[1]))
+				hourContainer.innerHTML += `<li>${util.formatDate(new Date(splitDate[0]), options)} ${hourStr} (${count})</li>`
+			}
+		
+			// Tweets by time of day
+			const hours = []
+			for (let i = 0; i < 24; i++) {
+				hours.push(convertToAmPm(i))
+			}
+			const hourCounts = []
+			for (let i = 0; i < hours.length; i++) hourCounts[i] = 0
+		
+			let tweetsForHour = []
+			for (let tweet of allTweets) {
+				const hour = tweet.date.getHours()
+				hourCounts[hour] ++
+			}
+		
+			new Chart(document.querySelector('#hour-bar-chart'), {
+				type: 'bar',
+				data: {
+				labels: hours,
+				datasets: [{
+					label: '# of tweets',
+					data: hourCounts,
+					borderWidth: 1
+				}]
+				}
+			});
+		}
+	
+		async function setupFollowers() {
+			const container = document.querySelector("#tweet-container")
+			const countsContainer = document.querySelector("#tweet-counts")
+			document.querySelector('#search').style.display = 'none'
+		
+			countsContainer.innerHTML = 'fetching follower data...'
+			container.innerHTML = ''
+		
+			const following = util.following
+			const followingById = {}
+			const tweetsByAccountId = {}
+		
+			countsContainer.innerHTML = ''
+		
+			for (let i = 0; i < allTweets.length; i++) {
+				const tweet = allTweets[i]
+				const user_mentions = tweet.entities.user_mentions
+		
+				for (let mention of user_mentions) {
+					followingById[mention.id] = mention
+					if (tweetsByAccountId[mention.id] == null) tweetsByAccountId[mention.id] = []
+					tweetsByAccountId[mention.id].push(tweet)
+				}
+			}
+		
+			const sortedMentionNumbers = Object.entries(tweetsByAccountId).map(([key, value]) => [key, value.length]).sort((a, b) => b[1] - a[1])
+			container.innerHTML +=
+			`
+			<div>
+			<h2>Top mentions</h2>
+			<ul id="interactions"></ul>
+		
+			<h2> First few interactions with each follower </h2>
+			<div id="first-interactions"></div>
+			</div>
+			`
+		
+			for (let i = 0; i < sortedMentionNumbers.length; i++) {
+				const item = sortedMentionNumbers[i]
+				const accountId = item[0]
+				const number = item[1]
+				if (accountId == util.accountId) {
+				continue
+				}
+		
+				const { screen_name, name } = followingById[accountId]
+				container.querySelector("#interactions").innerHTML += `<li>${name} (@${screen_name}): ${number}</li>`
+		
+				if (i > 10) {
+				break
+				}
+			}
+		
+			let data = Object.entries(tweetsByAccountId).map(([key, value]) => [key, value.sort((a, b) => { return a.date - b.date }) ])
+			data = data.sort((a, b) => {
+				return a[1][0].date - b[1][0].date
+			})
+		
+			const firstInteractionsContainer = document.querySelector("#first-interactions")
+			let str = ""
+			for (let item of data) {
+				const accountId = item[0]
+				const tweets = item[1]
+				const { screen_name, name } = followingById[accountId]
+				const self_username = util.username 
+				const searchUrl = `https://twitter.com/search?q=(from%3A%40${self_username} to%3A%40` + encodeURIComponent(screen_name) + `) OR (to%3A%40${self_username} from%3A%40` + encodeURIComponent(screen_name) + ")&src=typed_query&f=live";
+		
+				str += `<h4 style="margin-bottom:0px;">${name} (@${screen_name}) (${tweets.length})</h4> 
+				<a href="${searchUrl}" target="_blank">see all interactions</a><br/>
+				<div class="tweet-container" style="margin-top:10px;">
+				`
+		
+				for (let i = 0; i < tweets.length; i++) {
+				const tweet = tweets[i]
+				str += util.makeHTMLForTweet(tweet)
+				if (i > 6) break
+				}
+		
+				str += '</div>'
+			}
+			firstInteractionsContainer.innerHTML = str
+		}
+	
+		function getCurrentMode() {
+			const urlParams = new URLSearchParams(window.location.search);
+			let mode = urlParams.get('mode') ?? 'TWEETS'
+			return mode
+		}
+	
+		const convertToAmPm = (hour) => {
+			if (hour === 0) {
+				return '12 am';
+			} else if (hour === 12) {
+				return '12 pm';
+			} else if (hour < 12) {
+				return `${hour} am`;
+			} else {
+				return `${hour - 12} pm`;
+			}
+		}
+
+		function updateUrlParam(param, value) {
+			const urlParams = new URLSearchParams(window.location.search);
+			urlParams.set(param, value)
+			window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+		}
+	</script>
+
+	</div><!-- div main-content -->
+  </body>
+</html>

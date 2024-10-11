@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" type="text/css" href="base.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <title>Twitter Archive Toolkit</title>
+  </head>
+  <body>
+    <style>
+      pre {
+          white-space: pre-wrap;       /* Since CSS 2.1 */
+          white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+          white-space: -pre-wrap;      /* Opera 4-6 */
+          white-space: -o-pre-wrap;    /* Opera 7 */
+          word-wrap: break-word;       /* Internet Explorer 5.5+ */
+      }
+    </style>
+    <div id="main-content">
+      <h1>🛠️ Twitter Archive Toolkit</h1>
+      <p>
+        A swiss army knife & playground for exploring & building custom UIs for exported data.
+      </p>
+      <pre>Source code: <a href="https://github.com/DefenderOfBasic/twitter-archive-toolkit">https://github.com/DefenderOfBasic/twitter-archive-toolkit</a></pre>
+    
+      <h2>
+        Archive explorer
+      </h2>
+
+      <p>
+        Shows all tweets on a single page chronologically so you can CTRL+F & regex search. Also has a view for "your first interaction with each of your followers", and other stats.
+      </p>
+
+      <a class="button" href="./archive-explorer.html">Start</a>
+
+      <h2>
+        Semantic search
+      </h2>
+      
+      <p>
+        THIS ONLY WORKS LOCALLY, requires a local server. See instructions in GitHub repo.
+      </p>
+
+      <p>
+        You'll need to paste in your OpenAI API key. The app will use it to create semantic embeddings for your tweets and store them locally.
+      </p>
+
+      <a class="button" href="./semantic-search.html">Start</a>
+    </div>
+  </body>
+</html>

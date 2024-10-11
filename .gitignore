@@ -1,0 +1,4 @@
+node_modules
+frontend/public/local-archives
+dist
+server/.data/

@@ -23,3 +23,5 @@ Live demo:
 
 This will automatically fetch the tweets from the given archive, embed them using OpenAI's embedding model, store the vector results in a local JSON file using Vectra. Once it's done embedding, you can search your tweets semantically.
 
+<img src="https://github.com/user-attachments/assets/e4560fac-ae95-4031-9863-9e48f73ac36e" width="450" />
+

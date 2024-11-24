@@ -42,8 +42,12 @@
             gap: 5px;
             padding: 20px;
         }
-        #clusterThreads {
-
+        #title {
+            margin-bottom:0px;
+        }
+        #subtitle {
+            margin-top:0px;
+            color:gray;
         }
     </style>
 </head>
@@ -51,7 +55,8 @@
     <script src="tweet-component.js"></script>
 
     <div class="container">
-        <h1>DefenderOfBasic</h1>
+        <h1 id="title">DefenderOfBasic</h1>
+        <p id="subtitle"></p>
         <input id="search" type="text" class="search-box" placeholder="Semantic search..." autofocus>
     </div>
     <div id="clusterThreads">
@@ -80,6 +85,7 @@
 
             const threads = []
             const threadsById = {}
+            let wordCount = 0
             for (let i = 0; i < threadData.tweets.length; i++) {
                 const tweet = threadData.tweets[i]
                 if (tweet.parent) {
@@ -88,12 +94,15 @@
                 const newThread = [tweet]
                 let currentTweet = tweet 
                 while (currentTweet.nextTweet) {
+                    wordCount += currentTweet.full_text.split(' ').length
                     newThread.push(currentTweet.nextTweet)
                     currentTweet = currentTweet.nextTweet
                 }
                 threads.push(newThread)
                 threadsById[tweet.id] = newThread
             }
+            document.querySelector("#subtitle").innerHTML = `${wordCount.toLocaleString()} words - ${(threads.length).toLocaleString()} threads`
+            console.log({ wordCount, threadsLength: threads.length })
             const clusterThreads = document.querySelector("#clusterThreads")
 
             

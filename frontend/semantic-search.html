@@ -57,14 +57,16 @@
     <div id="clusterThreads">
 
     </div>
-
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
     <script type="module">
         import { Util } from './util.js';
         init()
         async function init() {
-            const archiveUrl = 'DefenderOfBasic.json.gz'
+            const archiveUrl = 'DefenderOfBasic.json'
             const request = await fetch(archiveUrl)
-            const archiveJSON = await request.json()
+            const arrayBuffer = await request.arrayBuffer()
+            const decompressed = pako.ungzip(new Uint8Array(arrayBuffer), { to: 'string' }); // Decompress
+            const archiveJSON = JSON.parse(decompressed)
 
             const util = new Util()
             util.accountId = archiveJSON.account[0].account.accountId

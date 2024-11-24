@@ -150,11 +150,9 @@ function combineJsonFilesSync(directory, outputFile) {
     }
 }
 
-
 run()
 async function run() {
-
-    const archivePath = 'frontend/public/local-archives/defender.zip'
+    const archivePath = 'data/defenderofbasic.zip'
     await processArchive(archivePath)
     // await fs.promises.rm(archivePath, { recursive: true, force: true });
 }

@@ -1,267 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" type="text/css" href="base.css">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-  <title>Twitter Archive Toolkit</title>
-</head>
-
-<body>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
-  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-
-  <div id="main-content">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search</title>
     <style>
-      #error {
-        color: rgb(255, 105, 105);
-      }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 2rem;
+        }
+        .search-box {
+            padding: 0.75rem 1rem;
+            font-size: 1.1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            width: 300px;
+            max-width: 90%;
+            transition: border-color 0.2s ease;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #007bff;
+        }
 
-      #title {
-        margin-bottom: 0px;
-      }
+        .thread-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 5px;
+            padding: 20px;
+        }
+        #clusterThreads {
 
-      .date {
-        color: var(--color-muted);
-      }
-
-      .tweet-text {
-        margin-bottom: 0px;
-      }
-
-      #search {
-        padding: 6px;
-        font-size: 15px;
-        border-radius: 5px;
-        width: 400px;
-        display: none;
-      }
-
-      #error {
-        color: rgb(255, 105, 105);
-      }
-
-      .tweet-container {
-        display: flex;
-        flex-wrap: wrap;
-      }
-
-      .tweet {
-        border: 1px solid rgb(112, 107, 87, 0.5);
-        margin: 5px;
-        padding: 10px;
-        box-sizing: border-box;
-        border-radius: 5px;
-        width: 400px;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .tweet p {
-        margin-top: 0px;
-      }
-
-      .tweet .metadata {
-        color: var(--color-muted);
-      }
-
-      .tweet .toolbar {
-        font-size: 20px;
-      }
-
-      .thread {
-        border: 1px solid rgb(112, 107, 87, 0.5);
-        border-radius: 5px;
-      }
-
-      .thread .tweet {
-        border: none;
-      }
-
-      .disabled-link {
-        text-decoration: none;
-      }
+        }
     </style>
+</head>
+<body>
+    <script src="tweet-component.js"></script>
 
-<a href="./">🏠 <span  style="font-size: 12px;">(back home)</span></a>
-
-    <div id="settings-panel">
-      <p style="display: flex;">
-        OpenAPI key: <input id="openapi-key" class="minimal-input" type="text" autocomplete="off"></input>
-      </p>
-      <p style="display: flex;">
-        Archive source: <input id="datasource-input" class="minimal-input" type="text" autocomplete="off"
-          value="https://pub-b47936fccfdb443db581ea766f51a5c0.r2.dev/DefenderOfBasic.json.gz"></input>
-      </p>
-      <button id="fetch-btn" class="button" style="padding:5px">Fetch</button>
-      <button id="delete-btn" class="button button-danger" style="padding:5px">Delete embeddings</button>
+    <div class="container">
+        <h1>DefenderOfBasic</h1>
+        <input id="search" type="text" class="search-box" placeholder="Semantic search..." autofocus>
     </div>
-    <h1 id="title">
-      (loading...)
-    </h1>
-    <hr />
-    <p id="error"></p>
-    <p id="loading-text" class="muted-text">Loading...</p>
-    <textarea id="search" placeholder="semantic search" type="text" autocomplete="off"></textarea>
-    <button id="search-btn" class="button" style="padding:5px; display:none">search</button>
+    <div id="clusterThreads">
 
-    <div id="tweet-container" class="tweet-container"></div>
+    </div>
 
     <script type="module">
-      import { Util } from './util.js';
-      import { SemanticSearch } from './semantic/semantic-search.js';
+        import { Util } from './util.js';
+        init()
+        async function init() {
+            const archiveUrl = 'DefenderOfBasic.json.gz'
+            const request = await fetch(archiveUrl)
+            const archiveJSON = await request.json()
 
-      const tweet_db = new Dexie("TweetDatabase");
-      tweet_db.version(1).stores({
-        tweets: 'id, data, url'
-      });
-      let allTweets
+            const util = new Util()
+            util.accountId = archiveJSON.account[0].account.accountId
+            util.username = archiveJSON.account[0].account.username
+            util.name = archiveJSON.account[0].account.accountDisplayName
+            util.avatar = archiveJSON.profile[0].profile.avatarMediaUrl
 
-      let semantic = new SemanticSearch()
+            let tweets = util.preprocessTweets(archiveJSON.tweets)
+            tweets = util.sortAscending(tweets)
+            const threadData = util.getThreads(tweets)
 
-      const datasourceInputElement = document.querySelector("#datasource-input")
-      if (localStorage.getItem('archiveUrl')) {
-        datasourceInputElement.value = localStorage.getItem('archiveUrl')
-      }
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('url')) {
-        datasourceInputElement.value = urlParams.get('url')
-      }
-
-      const openAPIKeyElement = document.querySelector("#openapi-key")
-      if (localStorage.getItem('openapiKey')) {
-        openAPIKeyElement.value = localStorage.getItem('openapiKey')
-        semantic.OPEN_API_KEY = localStorage.getItem('openapiKey')
-      }
-
-      let util = new Util({ db: tweet_db, key: 1 })
-      const searchInput = document.querySelector("#search");
-
-      async function init() {
-        console.log("Fetching")
-        try {
-          setLoadingText('Fetching tweets...')
-          const archiveUrl = datasourceInputElement.value
-          allTweets = await util.fetchArchive(archiveUrl)
-          document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
-          
-          await semantic.initDB()
-          setLoadingText('Initializing DB...')
-
-          const tweets = allTweets//.slice(0, 100) 
-          const embeddedTweetsSet = await semantic.getExistingTweets(tweets)
-
-          // Get tweets that are NOT yet embedded
-          const tweetsToProcess = []
-          for (let tweet of tweets) {
-            if (embeddedTweetsSet.has(tweet.id) == false) {
-              tweetsToProcess.push(tweet)
+            const threads = []
+            const threadsById = {}
+            for (let i = 0; i < threadData.tweets.length; i++) {
+                const tweet = threadData.tweets[i]
+                if (tweet.parent) {
+                    continue
+                }
+                const newThread = [tweet]
+                let currentTweet = tweet 
+                while (currentTweet.nextTweet) {
+                    newThread.push(currentTweet.nextTweet)
+                    currentTweet = currentTweet.nextTweet
+                }
+                threads.push(newThread)
+                threadsById[tweet.id] = newThread
             }
-          }
+            const clusterThreads = document.querySelector("#clusterThreads")
 
-          setLoadingText(`Found ${embeddedTweetsSet.size} embeddings for tweets.`)
-          if (tweetsToProcess.length > 0) {
-            const total = tweetsToProcess.length
-            const batchSize = 2000
-            let embeddedSoFar = 0
-            for (let i = 0; i < tweetsToProcess.length; i += batchSize) {
-              const batch = tweetsToProcess.slice(i, i + batchSize);
-              embeddedSoFar += batch.length
-              setLoadingText(`Embedding ${batch.length} tweets. Remaining: ${total - embeddedSoFar}`)
-              await semantic.embed(batch)
+            
+
+            document.querySelector('.search-box').addEventListener('keydown', async function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    clusterThreads.innerHTML = '<h3>Loading...</h3>'
+                    e.preventDefault(); // Prevents new line from being added
+                    const searchTerm = this.value
+
+                    const response = await fetch('https://semantic-search.defenderofbasic.workers.dev/query', {
+                        method: 'POST',
+                        body: JSON.stringify({ searchTerm })
+                    })
+                    const result = await response.json()
+
+                    let output = ""
+                    for (let i = 0; i < result.matches.length; i++) {
+                        const match = result.matches[i]
+                        const thread = threadsById[match.metadata.id]
+                        output += displayThread(thread, match.score)
+
+                    }
+                    clusterThreads.innerHTML = output
+                    
+
+                    // console.log(util.tweetsById[result.matches[0].metadata.id])
+
+                    console.log(result.matches.map(item => {
+                        return { score: item.score, text: item.metadata.text, id: item.metadata.id }
+                    }))
+                }
+            });
+
+            function displayThread(thread, score) {
+                // thread is a list of tweets
+                let str = ""
+                str +=  `<h2>${thread.length} tweets</h2>
+                    <p>${score}</p>`
+
+                for (let i = 0; i < thread.length; i++) {
+                    const tweet = thread[i]
+    
+                    
+                    str += `<tweet-component
+                            avatar="${util.avatar}"
+                            name="${util.name}"
+                            username="${util.username}"
+                            timestamp="${tweet.date}"
+                            likes="${tweet.favorite_count}"
+                            retweets="${tweet.retweet_count}"
+                            url="${tweet.url.trim()}"
+                        >
+                        ${formatContent(tweet.full_text)}
+                        </tweet-component>
+                    `
+                }
+                str += `</div>`
+
+                return str
             }
-                      
-            setLoadingText(`Done!`)
-          }
-          
-          searchInput.style.display = 'block'
-          document.querySelector("#search-btn").style.display = 'block'
-          
-
-        } catch (e) {
-          console.error(e)
-          setError(`Failed to fetch tweets: ${String(e)}`)
         }
 
+        function formatContent(content) {
+                let formattedContent = content.replace(/"/g, '&quot;');
 
+                // Replace single quotes with &#39;
+                formattedContent = formattedContent.replace(/'/g, '&#39;');
 
-        document.querySelector("#search-btn").onclick = (e) => {
-          search(searchInput.value)
-        }
-        searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault(); 
-                search(e.target.value)
-            }
-        });
-        document.querySelector("#delete-btn").onclick = async (e) => {
-          setLoadingText('Clearing DB...')
-          await semantic.clearDB()
-          setLoadingText('Done. Refresh the page')
-        }
+                // Convert newlines to <br>
+                formattedContent = formattedContent.replace(/\n/g, '<br>');
 
-        document.querySelector("#fetch-btn").onclick = async (e) => {
-          try {
-            setError('')
-            setLoadingText('Fetching tweets')
-            document.querySelector("#title").innerHTML = 'Loading..'
-            allTweets = await util.fetchArchive(datasourceInputElement.value)
-            document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
+                // Make URLs clickable by converting them to <a> tags
+                formattedContent = formattedContent.replace(
+                    /(https?:\/\/[^\s]+)/g,
+                    '<a href="$1" target="_blank">$1</a>'
+                );
 
-            localStorage.setItem('archiveUrl', datasourceInputElement.value)
-            updateUrlParam('url', datasourceInputElement.value)
-            setLoadingText('')
-
-          } catch (e) {
-            console.error(e)
-            setLoadingText('')
-            setError(`Failed to fetch tweets: ${String(e)}`)
-          }
-        }
-
-        document.querySelector("#openapi-key").oninput = (e) => {
-          semantic.OPEN_API_KEY = e.target.value
-          localStorage.setItem('openapiKey', e.target.value)
-        }
-      }
-      init()
-
-
-      function setError(text) {
-        document.querySelector("#error").innerHTML = text
-      }
-      function setLoadingText(text) {
-        document.querySelector("#loading-text").style.display = 'block'
-        document.querySelector("#loading-text").innerHTML = text
-      }
-      
-
-      function updateUrlParam(param, value) {
-        const urlParams = new URLSearchParams(window.location.search);
-        urlParams.set(param, value)
-        window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
-      }
-
-      async function search(queryString) {
-        const results = (await semantic.search(queryString)).result
-        const container = document.querySelector("#tweet-container")
-        const tweets = results.map(item => {
-          const tweet_id = item.item.metadata.tweet_id 
-          return util.tweetsById[tweet_id]
-        })
-        let str = ""
-        for (let i = 0; i < tweets.length; i++) {
-          const tweet = tweets[i]
-          str += util.makeHTMLForTweet(tweet)
-        }
-      
-        container.innerHTML = str
-      }
-
+        return formattedContent;
+    }
     </script>
-  </div>
 </body>
-
 </html>

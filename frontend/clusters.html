@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic search</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .topic {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            color: #333;
+            text-align: center;
+        }
+
+        .topic:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 0px;
+        }
+        #subtitle {
+            text-align: center;
+            color: #8a8a8a;
+            margin-bottom: 30px;
+            margin-top: 0px;
+        }
+
+        #clusterThreads {
+            display: none;
+        }
+        .thread-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 5px;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <script src="tweet-component.js"></script>
+
+    <h1>DefenderOfBasic</h1>
+    <p id="subtitle"></p>
+    <div id="topicGrid" class="grid"></div>
+    <div id="clusterThreads">
+
+    </div>
+
+    <script type="module">
+        const url = 'defenderofbasic-threads.json'
+        const request = await fetch(url)
+        const threadsJSON = await request.json()
+        // console.log(threadsJSON.clusters[0])
+        let wordCount = 0
+        for (let cluster of threadsJSON.clusters) {
+            for (let thread of cluster.threads) {
+                for (let tweet of thread) {
+                    const words = tweet.content.split(" ")
+                    wordCount += words.length
+                }
+            }
+        }
+        threadsJSON.clusters.sort((a, b) => b.threads.length - a.threads.length);
+        document.querySelector("#subtitle").innerHTML = `${wordCount.toLocaleString()} words`
+
+        threadsJSON.clusters = threadsJSON.clusters.map(item => {
+            return {...item, title: item.title.replace(/"/g, '')}
+        })
+        const clustersByName = {}
+        threadsJSON.clusters.forEach(cluster => {
+            clustersByName[slugify(cluster.title)] = cluster
+        })
+        
+        const { avatar, name, username } = threadsJSON
+
+        // Sample data - replace with your JSON
+        const topics = threadsJSON.clusters.map(cluster => { 
+            return {
+                text: `${cluster.title} (${cluster.threads.length})`,
+                url: '#',
+                title: cluster.title
+            }
+        })
+
+        function renderTopics(topics) {
+            const grid = document.querySelector('#topicGrid');
+            grid.innerHTML = topics.map(topic => `
+                <a href="#${slugify(topic.title)}" class="topic" data-title="${topic.title}">
+                    ${topic.text}
+                </a>
+            `).join('');
+        }
+
+        function renderThreads() {
+            window.scrollTo(0,0); 
+            const cluster = clustersByName[window.location.hash.replace('#', '')]
+            const clusterThreads = document.querySelector("#clusterThreads")
+
+            clusterThreads.innerHTML = `<h2>${cluster.title}</h2>`
+            let str = ""
+            for (let thread of cluster.threads) {
+                str += `<div class="thread-grid">`
+
+                for (let i = 0; i < thread.length; i++) {
+                    const tweet = thread[i]
+    
+                    str += 
+                    `
+                    <tweet-component
+                            avatar="${avatar}"
+                            name="${name}"
+                            username="${username}"
+                            timestamp="${tweet.date}"
+                            likes="${tweet.likes}"
+                            retweets="${tweet.retweets}"
+                            url="${tweet.url.trim()}"
+                        >
+                        ${formatContent(tweet.content)}
+                        </tweet-component>
+                    `
+                }
+                str += `</div>`
+                str +=  '<hr/>'
+            }
+
+            clusterThreads.innerHTML += str
+            
+        }
+
+        // Initialize the grid
+        renderTopics(topics);
+
+        function updateView() {
+            const grid = document.querySelector('#topicGrid');
+            const clusterThreads = document.querySelector("#clusterThreads")
+            if (window.location.hash == '') {
+                grid.style.display = 'grid'
+                clusterThreads.style.display = 'none'
+            } else {
+                grid.style.display = 'none'
+                clusterThreads.style.display = 'block'
+                // Render threads
+                renderThreads()
+            }
+        }
+        updateView()
+
+        // document.querySelectorAll(".topic").forEach(link => {
+        //     link.onclick = (e) => {
+        //         // e.preventDefault()
+
+        //         const title = e.target.dataset.title
+        //         const cluster = clustersByName[title]
+        //         window.location.hash = slugify(title)
+
+                
+
+        //     }
+        // })
+
+        window.addEventListener('hashchange', function() {
+            const hashValue = window.location.hash;
+            updateView()
+        });
+
+
+        function slugify(str) {
+            str = str.replace(/^\s+|\s+$/g, ''); // trim leading/trailing white space
+            str = str.toLowerCase(); // convert string to lowercase
+            str = str.replace(/[^a-z0-9 -]/g, '') // remove any non-alphanumeric characters
+                    .replace(/\s+/g, '-') // replace spaces with hyphens
+                    .replace(/-+/g, '-'); // remove consecutive hyphens
+            return str;
+        }
+        
+        function formatContent(content) {
+                let formattedContent = content.replace(/"/g, '&quot;');
+
+                // Replace single quotes with &#39;
+                formattedContent = formattedContent.replace(/'/g, '&#39;');
+
+                // Convert newlines to <br>
+                formattedContent = formattedContent.replace(/\n/g, '<br>');
+
+                // Make URLs clickable by converting them to <a> tags
+                formattedContent = formattedContent.replace(
+                    /(https?:\/\/[^\s]+)/g,
+                    '<a href="$1" target="_blank">$1</a>'
+                );
+
+        return formattedContent;
+    }
+    </script>
+</body>
+</html>

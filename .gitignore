@@ -1,4 +1,5 @@
 node_modules
 frontend/public/local-archives
+frontend/public/archives
 dist
 server/.data/

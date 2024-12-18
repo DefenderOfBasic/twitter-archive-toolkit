@@ -6,6 +6,35 @@ export class Util {
       this.tweetsById = {}
   }
 
+  async fetchArchive(archiveUrl) {
+    let archiveJson
+
+    console.log("Fetching fresh copy")
+    const isGzip = (archiveUrl.indexOf('.json.gz') != -1)
+    const request = await fetch(archiveUrl)
+    if (isGzip) {
+      const arrayBuffer = await request.arrayBuffer()
+      const decompressed = pako.ungzip(new Uint8Array(arrayBuffer), { to: 'string' }); // Decompress
+      archiveJson = JSON.parse(decompressed)
+    } else  {
+      archiveJson = await request.json()
+    }
+    try {
+      this.db.tweets.clear()
+      await this.db.tweets.put({ id: 1, data: archiveJson, url: archiveUrl })
+    } catch (e) {
+      console.log("Failed to save tweets to Indexed DB", e)
+    }
+  
+    
+    this.accountId = archiveJson.account[0].account.accountId 
+    this.username = archiveJson.account[0].account.username
+    this.following = archiveJson.following
+
+    this.tweetsById = {}
+    return this.preprocessTweets(archiveJson.tweets)
+  }
+
   preprocessTweets(tweetsJsonRaw) {
       const newTweets = []
       for (let i = 0; i < tweetsJsonRaw.length; i++) {

@@ -95,16 +95,12 @@
     <hr />
     <p id="error"></p>
     <p id="loading-text" class="muted-text">Loading...</p>
+    <script src="tweet-component.js"></script>
 
     <div id="tweet-container" class="tweet-container"></div>
 
     <script type="module">
       import { Util } from './util.js';
-      const tweet_db = new Dexie("TweetDatabase");
-      tweet_db.version(1).stores({
-        tweets: 'id, data, url'
-      });
-      let allTweets
 
       const datasourceInputElement = document.querySelector("#datasource-input")
       if (localStorage.getItem('archiveUrl')) {
@@ -115,17 +111,21 @@
         datasourceInputElement.value = urlParams.get('url')
       }
 
-      let util = new Util({ db: tweet_db, key: 1 })
+      let util = new Util()
 
       async function init() {
         console.log("Fetching")
+        document.querySelector("#title").innerHTML = 'Loading..'
         try {
           const archiveUrl = datasourceInputElement.value
-          allTweets = await util.fetchArchive(archiveUrl)
+          const allTweets = await util.fetchArchive(archiveUrl)
           document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
 
-          console.log(allTweets)
           displayListOfTweets(allTweets)
+
+          localStorage.setItem('archiveUrl', datasourceInputElement.value)
+          updateUrlParam('url', datasourceInputElement.value)
+
         } catch (e) {
           console.error(e)
           setError(`Failed to fetch tweets: ${String(e)}`)
@@ -134,23 +134,7 @@
         toggleLoading(false)
 
         document.querySelector("#fetch-btn").onclick = async (e) => {
-          try {
-            setError('')
-            toggleLoading(true)
-            document.querySelector("#title").innerHTML = 'Loading..'
-            allTweets = await util.fetchArchive(datasourceInputElement.value)
-            document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
-            toggleLoading(false)
-
-            localStorage.setItem('archiveUrl', datasourceInputElement.value)
-            updateUrlParam('url', datasourceInputElement.value)
-
-            displayListOfTweets(allTweets)
-          } catch (e) {
-            toggleLoading(false)
-            console.error(e)
-            setError(`Failed to fetch tweets: ${String(e)}`)
-          }
+          init()
         }
       }
       init()
@@ -162,7 +146,7 @@
         const sorted = util.sortAscending(tweets)
         for (let i = 0; i < sorted.length; i++) {
           const tweet = sorted[i]
-          str += `<p>${tweet.full_text}</p>`
+        str += getTweetHTML(tweet)
 
           if (i > maxTweets) break
         }
@@ -185,6 +169,40 @@
         urlParams.set(param, value)
         window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
       }
+
+      function getTweetHTML(tweet) {
+        const str = `<tweet-component
+                            avatar="${util.avatar}"
+                            name="${util.name}"
+                            username="${util.username}"
+                            timestamp="${tweet.date}"
+                            likes="${tweet.favorite_count}"
+                            retweets="${tweet.retweet_count}"
+                            url="${tweet.url.trim()}"
+                        >
+                        ${formatContent(tweet.full_text)}
+                        </tweet-component>
+                    `
+        return str
+      }
+
+      function formatContent(content) {
+                let formattedContent = content.replace(/"/g, '&quot;');
+
+                // Replace single quotes with &#39;
+                formattedContent = formattedContent.replace(/'/g, '&#39;');
+
+                // Convert newlines to <br>
+                formattedContent = formattedContent.replace(/\n/g, '<br>');
+
+                // Make URLs clickable by converting them to <a> tags
+                formattedContent = formattedContent.replace(
+                    /(https?:\/\/[^\s]+)/g,
+                    '<a href="$1" target="_blank">$1</a>'
+                );
+
+        return formattedContent;
+    }
 
     </script>
   </div>

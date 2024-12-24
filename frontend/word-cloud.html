@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" type="text/css" href="base.css">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <title>Twitter Archive Toolkit</title>
+</head>
+
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.7/d3.layout.cloud.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <div id="main-content">
+    <style>
+      #error {
+        color: rgb(255, 105, 105);
+      }
+
+      #title {
+        margin-bottom: 0px;
+      }
+
+      .date {
+        color: var(--color-muted);
+      }
+
+      .tweet-text {
+        margin-bottom: 0px;
+      }
+
+      #search {
+        padding: 6px;
+        font-size: 15px;
+        border-radius: 5px;
+        width: 400px;
+        display: none;
+      }
+
+      #error {
+        color: rgb(255, 105, 105);
+      }
+
+      .tweet {
+        border: 1px solid rgb(112, 107, 87, 0.5);
+        margin: 5px;
+        padding: 10px;
+        box-sizing: border-box;
+        border-radius: 5px;
+        width: 400px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .tweet p {
+        margin-top: 0px;
+      }
+
+      .tweet .metadata {
+        color: var(--color-muted);
+      }
+
+      .tweet .toolbar {
+        font-size: 20px;
+      }
+
+      .thread {
+        border: 1px solid rgb(112, 107, 87, 0.5);
+        border-radius: 5px;
+      }
+
+      .thread .tweet {
+        border: none;
+      }
+
+      .disabled-link {
+        text-decoration: none;
+      }
+      .highlight {
+        background-color: #fffa96;
+      }
+    </style>
+
+    <a href="./">🏠 <span  style="font-size: 12px;">(back home)</span></a>
+
+    <div id="settings-panel">
+      <p style="display: flex;">
+        Archive source: <input id="datasource-input" class="minimal-input" type="text" autocomplete="off"
+          value="https://pub-b47936fccfdb443db581ea766f51a5c0.r2.dev/DefenderOfBasic.json.gz"></input>
+      </p>
+      <button id="fetch-btn" class="button" style="padding:5px">Fetch</button>
+    </div>
+    <h1 id="title">
+      (loading...)
+    </h1>
+    <hr />
+    <p id="error"></p>
+    <p id="loading-text" class="muted-text">Loading...</p>
+    <script src="tweet-component.js"></script>
+
+    <div id="tweet-container" class="tweet-container"></div>
+
+    <script type="module">
+        const winkNLP = (await import('https://cdn.skypack.dev/wink-nlp')).default;
+        const model = (await import('https://cdn.skypack.dev/wink-eng-lite-web-model')).default;
+        const nlp = winkNLP( model );
+        const BM25Vectorizer = (await import('https://cdn.skypack.dev/wink-nlp/utilities/bm25-vectorizer')).default;
+        const bm25 = BM25Vectorizer();
+
+      import { Util } from './util.js';
+
+      const datasourceInputElement = document.querySelector("#datasource-input")
+      if (localStorage.getItem('archiveUrl')) {
+        datasourceInputElement.value = localStorage.getItem('archiveUrl')
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('url')) {
+        datasourceInputElement.value = urlParams.get('url')
+      }
+
+      let util = new Util()
+
+      async function init() {
+        console.log("Fetching")
+        document.querySelector("#title").innerHTML = 'Loading..'
+        try {
+          const archiveUrl = datasourceInputElement.value
+          const allTweets = await util.fetchArchive(archiveUrl)
+          document.querySelector("#title").innerHTML = `${util.username} (${allTweets.length.toLocaleString()} tweets)`
+
+          const sortedTweets = util.sortAscending(allTweets)
+          const threads = util.getThreadsAsArray(sortedTweets)
+
+          makeWordCloud(threads)
+
+          localStorage.setItem('archiveUrl', datasourceInputElement.value)
+          updateUrlParam('url', datasourceInputElement.value)
+
+        } catch (e) {
+          console.error(e)
+          setError(`Failed to fetch tweets: ${String(e)}`)
+        }
+
+        toggleLoading(false)
+
+        document.querySelector("#fetch-btn").onclick = async (e) => {
+          init()
+        }
+      }
+      init()
+
+      function makeWordCloud(threads) {
+        let wordCount = 0
+        let longestThread = null
+        let allWords = ''
+        for (let thread of threads) {
+            const threadWordCount = 
+                thread.reduce((total, tweet) => total + tweet.full_text.split(' ').length, 0)
+            wordCount += threadWordCount
+            if (longestThread == null) longestThread = thread
+            if (thread.length > longestThread.length) {
+                longestThread = thread  
+            }
+
+            for (let tweet of thread) {
+                allWords += tweet.full_text + '\n'
+            }
+        }
+        let str = ""
+
+
+        const doc = nlp.readDoc(allWords);
+        window.doc = doc
+        let wordsFromText = getWordsFromText(doc, nlp)
+
+        wordsFromText = wordsFromText.slice(0, 500)
+        console.log(wordsFromText)
+        // cache the tweets for each of the top words
+        const wordThreadMap = {}
+        for (let i = 0; i < wordsFromText.length; i++) {
+            // if (i > 10) break 
+
+            const { text } = wordsFromText[i]
+            // Find every thread that has this word 
+            wordThreadMap[text] = []
+            for (let thread of threads) {
+                for (let tweet of thread) {
+                    const words = tweet.full_text.toLowerCase().split(' ')
+                    if (words.includes(text)) {
+                        wordThreadMap[text].push(tweet)
+                    }
+                }
+            }
+
+            wordThreadMap[text].sort((a, b) => {
+                const aTotal = Number(a.favorite_count) + Number(a.retweet_count);
+                const bTotal = Number(b.favorite_count) + Number(b.retweet_count);
+                return bTotal - aTotal;  // descending order (highest counts first)
+            });
+        }
+        const svg = makeWordCloudSVG(wordsFromText, wordThreadMap)
+
+        str = 
+        `threads: ${threads.length.toLocaleString()}. wordCount: ${wordCount.toLocaleString()}.`
+
+        str += `<h2> Word cloud </h2>`
+        str += '<div id="svg-container"></div>'
+        str += `<div id="clicked-tweet-container"></div>`
+
+        str += `<h2> Longest thread </h2>
+        <p>
+            ${longestThread.length} tweets    
+        </p>
+        ` 
+        + getTweetHTML(longestThread[0])
+
+        document.querySelector("#tweet-container").innerHTML = str
+        document.querySelector("#svg-container").appendChild(svg)
+
+      }
+
+      function displayListOfTweets(tweets) {
+        const maxTweets = 1000
+        let str = `<p class="muted-text">Showing first ${maxTweets} tweets:</p>`
+        const sorted = util.sortAscending(tweets)
+        for (let i = 0; i < sorted.length; i++) {
+          const tweet = sorted[i]
+        str += getTweetHTML(tweet)
+
+          if (i > maxTweets) break
+        }
+
+        document.querySelector("#tweet-container").innerHTML = str
+      }
+
+      function setError(text) {
+        document.querySelector("#error").innerHTML = text
+      }
+      function toggleLoading(bool) {
+        if (bool) {
+          document.querySelector("#loading-text").style.display = 'block'
+        } else {
+          document.querySelector("#loading-text").style.display = 'none'
+        }
+      }
+      function updateUrlParam(param, value) {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set(param, value)
+        window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+      }
+
+      function getTweetHTML(tweet, wordHighlight) {
+        const str = `<tweet-component
+                            avatar="${util.avatar}"
+                            name="${util.name}"
+                            username="${util.username}"
+                            timestamp="${tweet.date}"
+                            likes="${tweet.favorite_count}"
+                            retweets="${tweet.retweet_count}"
+                            url="${tweet.url.trim()}"
+                        >
+                        ${formatContent(tweet.full_text, wordHighlight)}
+                        </tweet-component>
+                    `
+        return str
+      }
+
+      function formatContent(content, wordHighlight) {
+            if (wordHighlight) {
+                content = 
+                    content.replace(new RegExp(wordHighlight, 'gi'), match => 
+                    `<span class=highlight>${match}</span>`)
+                console.log(content, wordHighlight)
+            }        
+        
+                let formattedContent = content.replace(/"/g, '&quot;');
+
+                // Replace single quotes with &#39;
+                formattedContent = formattedContent.replace(/'/g, '&#39;');
+
+                // Convert newlines to <br>
+                formattedContent = formattedContent.replace(/\n/g, '<br>');
+
+                // Make URLs clickable by converting them to <a> tags
+                formattedContent = formattedContent.replace(
+                    /(https?:\/\/[^\s]+)/g,
+                    '<a href="$1" target="_blank">$1</a>'
+                );
+
+        return formattedContent;
+    }
+
+    function getWordsFromText(doc, nlp) {
+    const tokensFTByPoS = Object.create(null);
+            tokensFTByPoS.NOUN = Object.create(null);
+            tokensFTByPoS.ADJ = Object.create(null);
+            tokensFTByPoS.VERB = Object.create(null);
+            tokensFTByPoS.ADV = Object.create(null);
+            tokensFTByPoS.PROPN = Object.create(null );
+
+    // Track words per sentence for IDF calculation
+    const sentenceWords = {};
+    
+    doc.tokens().each(t => {
+        const pos = t.out(nlp.its.pos);
+        const token = t.out(nlp.its.lemma);
+        const sentenceIndex = t.parentSentence().index();
+        
+        if (!tokensFTByPoS[pos]) return;
+
+        // Your existing frequency counting
+        tokensFTByPoS[pos][token] = tokensFTByPoS[pos][token] || Object.create(null);
+        tokensFTByPoS[pos][token].value = 1 + (tokensFTByPoS[pos][token].value || 0);
+        tokensFTByPoS[pos][token].sentences = tokensFTByPoS[pos][token].sentences || new Set();
+        tokensFTByPoS[pos][token].sentences.add(sentenceIndex);
+        
+        // Track which words appear in which sentences
+        sentenceWords[sentenceIndex] = sentenceWords[sentenceIndex] || new Set();
+        sentenceWords[sentenceIndex].add(token);
+    });
+
+    // Calculate IDF scores
+    const totalSentences = Object.keys(sentenceWords).length;
+    const idfScores = {};
+    
+    for (const pos in tokensFTByPoS) {
+        for (const token in tokensFTByPoS[pos]) {
+            const sentencesWithWord = tokensFTByPoS[pos][token].sentences.size;
+            idfScores[token] = Math.log(totalSentences / (1 + sentencesWithWord));
+        }
+    }
+
+    let freqTable = new Array();
+    for (const pos in tokensFTByPoS) {
+        freqTable = Object.keys(tokensFTByPoS[pos])
+            .map(key => ({
+                text: key,
+                value: tokensFTByPoS[pos][key].value,  // raw frequency
+                tfidf: tokensFTByPoS[pos][key].value * idfScores[key], // tf-idf score
+                pos: pos,
+                sentences: Array.from(tokensFTByPoS[pos][key].sentences)
+            }))
+            .filter(e => e.value > 1 && e.text.length > 2)
+            .concat(freqTable);
+    }
+
+    // You can sort by either raw frequency or tf-idf
+    return freqTable.sort((a, b) => b.tfidf - a.tfidf);  // sorting by tf-idf now
+}
+
+    function makeWordCloudSVG(wordsFromText, wordThreadMap) {
+        const colorMap = Object.create(null);
+  
+  colorMap.NOUN = '#67001f';
+  colorMap.PROPN = '#67001f';
+  colorMap.ADJ = '#878787';
+  colorMap.VERB = '#1a1a1a';
+  colorMap.ADV = '#d6604d';
+  
+        const computeFontSize = d3.scaleSqrt()
+    .domain([1, d3.max(wordsFromText.map(d => d.value))])
+    .range([6, 82]);
+        
+        const fontFamily = "Verdana, Arial, Helvetica, sans-serif";
+        const width = 700 
+        const height = 400
+  var layout = d3.layout.cloud()
+    .size([width, height]) 
+    .words(wordsFromText)
+    .padding(0)
+    .rotate(() => -Math.ceil(10*doc.out(nlp.its.sentiment)) )
+    .font(fontFamily)
+    .fontSize(d => computeFontSize(d.value))
+    .on('word', addWord);
+ 
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", layout.size()[0]);
+    svg.setAttribute("height", layout.size()[1]);
+
+  const svgDeltaX = d3.select(svg).attr("width");
+  const group = d3.select(svg).append('g');
+  var div = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+  
+  const divWidth = parseInt(div.style("width"));
+  function handleMouseOver(d, i) {
+    const that = d3.select(this);
+    that.classed("word-hovered", true);
+    
+    div.transition()
+       .duration(200)
+       .style("opacity", 1);
+  
+    div.html((that.text()).split('|')[1])
+       .style("left", ( ((svgDeltaX - d.pageX) < divWidth)? svgDeltaX - divWidth:d.pageX) + "px")
+       .style("top", (d.pageY) + "px");
+  }
+   //handleMouseOver()
+
+  function handleMouseOut(d, i) {
+    d3.select(this)
+      .classed("word-hovered", false);
+    
+    div.transition()
+       .duration(500)
+       .style("opacity", 0);
+  } // handleMouseOut()
+
+  function handleClick(d, i) {
+    const that = d3.select(this);
+    const text = that.text()
+    const word = (that.text()).split('|')[0]
+    const tweets = wordThreadMap[word]
+    const tweet = tweets[Math.floor(Math.random() * tweets.length)]
+
+    document.querySelector("#clicked-tweet-container").innerHTML = 
+    getTweetHTML(tweet, word)
+    }
+  
+  function addWord (word) {
+    const text = group.append('text');
+    text.style('font-size', '2px')
+        .style('fill', `${colorMap[word.pos]}`)
+        .style('cursor', 'pointer')
+        .attr('text-anchor', 'middle')
+        .attr('transform', `translate(${[word.x, word.y]})rotate(${word.rotate})`)
+        .text(word.text)
+        .style('font-size', `${word.size}px`)
+        .on("click", handleClick)
+        // .on("mouseover", handleMouseOver)
+        // .on("mouseout", handleMouseOut);
+    
+    const titleText = [];
+    word.sentences.forEach( si => titleText.push( doc.sentences().itemAt(si).out() ) );
+    const titleTextDoc = nlp.readDoc('|'+titleText.join('<br/><br/>'));
+    titleTextDoc.tokens().each( t => { if (t.out(nlp.its.lemma) === word.text) t.markup() })
+    text.append('data-title').text(`${titleTextDoc.out(nlp.its.markedUpText)}`);
+  }
+  
+  layout.start();
+  return svg;
+    }
+
+
+    function computeTfIdf(documents) {
+        // Step 1: Compute term frequency for each document
+        const tf = documents.map(doc => {
+            const wordCounts = {};
+            doc.forEach(word => {
+                wordCounts[word] = (wordCounts[word] || 0) + 1;
+            });
+            return wordCounts;
+        });
+        
+        // Step 2: Compute IDF for each term
+        const wordDocs = {};
+        documents.forEach(doc => {
+            // Count documents containing each word
+            const uniqueWords = new Set(doc);
+            uniqueWords.forEach(word => {
+                wordDocs[word] = (wordDocs[word] || 0) + 1;
+            });
+        });
+        
+        // Calculate IDF
+        const totalDocs = documents.length;
+        const idf = {};
+        Object.keys(wordDocs).forEach(word => {
+            idf[word] = Math.log(totalDocs / wordDocs[word]);
+        });
+        
+        // Step 3: Calculate TF-IDF for each term in each document
+        return tf.map(docTerms => {
+            const tfidf = {};
+            Object.keys(docTerms).forEach(word => {
+                tfidf[word] = docTerms[word] * idf[word];
+            });
+            return tfidf;
+        });
+    }
+
+    // function computeFrequencies(allWords, wordsFromText) {
+    //     bm25.learn(nlp.readDoc(allWords).tokens().out(nlp.its.normal))
+
+    //     // Get all unique words from your document
+    //     // const uniqueWords = [...new Set(allWords.split(' '))];  // adjust split based on your data format
+    //     const uniqueWords = wordsFromText.map(item => item.text)
+    //     // Get BM25 score for each word
+    //     const wordScores = uniqueWords.map(word => {
+    //         const vector = bm25.vectorOf(nlp.readDoc(word).tokens().out(nlp.its.normal));
+    //         // Sum up the vector values to get a single score
+    //         const score = vector.reduce((a, b) => a + b, 0);
+    //         return {
+    //             word,
+    //             score
+    //         };
+    //     });
+    //     // Sort by score, highest to lowest
+    //     const sortedWords = wordScores.sort((a, b) => b.score - a.score);
+    //     console.log(sortedWords.slice(0, 100))
+    // }
+
+    </script>
+  </div>
+</body>
+
+</html>

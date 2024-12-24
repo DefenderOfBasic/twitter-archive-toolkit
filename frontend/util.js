@@ -19,17 +19,13 @@ export class Util {
     } else  {
       archiveJson = await request.json()
     }
-    try {
-      this.db.tweets.clear()
-      await this.db.tweets.put({ id: 1, data: archiveJson, url: archiveUrl })
-    } catch (e) {
-      console.log("Failed to save tweets to Indexed DB", e)
-    }
   
     
     this.accountId = archiveJson.account[0].account.accountId 
     this.username = archiveJson.account[0].account.username
     this.following = archiveJson.following
+    this.name = archiveJson.account[0].account.accountDisplayName
+    this.avatar = archiveJson.profile[0].profile.avatarMediaUrl
 
     this.tweetsById = {}
     return this.preprocessTweets(archiveJson.tweets)
@@ -88,6 +84,28 @@ export class Util {
       }
 
       return { tweets: newTweets, retweet_count, external_reply_count }
+  }
+
+  getThreadsAsArray(tweetsInput) {
+    const preprocessedResult = this.getThreads(tweetsInput)
+    const tweets = preprocessedResult.tweets 
+    let threads = []
+
+    for (let i = 0; i < tweets.length; i++) {
+        const tweet = tweets[i]
+        if (tweet.parent) {
+            continue
+        }
+        const newThread = [tweet]
+        let currentTweet = tweet 
+        while (currentTweet.nextTweet) {
+            newThread.push(currentTweet.nextTweet)
+            currentTweet = currentTweet.nextTweet
+        }
+        threads.push(newThread)
+    }
+
+    return threads
   }
 
   sortAscending(tweets) {
